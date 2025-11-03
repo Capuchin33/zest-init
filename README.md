@@ -46,7 +46,7 @@ npx playwright test
 
 ## Troubleshooting
 
-- Ensure Node.js >= 16 is installed
+- Ensure Node.js >= 24 is installed
 - If browsers did not install: `npx playwright install --force`
 - On Windows, run the terminal as Administrator if you get permission errors
 

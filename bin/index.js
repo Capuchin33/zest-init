@@ -86,9 +86,13 @@ async function askYesNo(question, defaultYes = true) {
         ? defaultInstallPlaywright
         : await askYesNo('Install @playwright/test and browsers?', defaultInstallPlaywright);
     }
-    const createPwConfig = nonInteractiveYes
-      ? defaultCreatePwConfig
-      : await askYesNo('Create playwright.config.ts?', defaultCreatePwConfig);
+    // Ask about Playwright config only if Playwright will be available
+    let createPwConfig = false;
+    if (installPlaywright || isPwInstalled) {
+      createPwConfig = nonInteractiveYes
+        ? defaultCreatePwConfig
+        : await askYesNo('Create playwright.config.ts?', defaultCreatePwConfig);
+    }
     const createExampleTest = nonInteractiveYes
       ? defaultCreateExampleTest
       : await askYesNo('Add an example test in tests/?', defaultCreateExampleTest);
@@ -168,12 +172,17 @@ export default defineZestConfig({
       // Use Playwright's init command to create standard config
       if (!fs.existsSync('playwright.config.ts')) {
         try {
-          // Run playwright init with auto-accept defaults (send Enter key presses)
-          const result = spawnSync('npx', ['playwright', 'init'], {
-            input: Buffer.from('\n\n\n\n', 'utf8'), // Accept all defaults
-            stdio: ['pipe', 'inherit', 'inherit']
-          });
-          if (result.error) throw result.error;
+          // Run Playwright init: interactive if not in --yes mode, auto-accept otherwise
+          if (nonInteractiveYes) {
+            const result = spawnSync('npx', ['playwright', 'init'], {
+              input: Buffer.from('\n\n\n\n', 'utf8'), // Accept all defaults
+              stdio: ['pipe', 'inherit', 'inherit']
+            });
+            if (result.error) throw result.error;
+          } else {
+            // Let the user configure Playwright interactively
+            run('npx playwright init');
+          }
           // Modify the config to add Zest reporter
           if (fs.existsSync('playwright.config.ts')) {
             let configContent = fs.readFileSync('playwright.config.ts', 'utf8');
@@ -227,12 +236,15 @@ export default defineConfig({
       ensureDir('tests');
       ensureFile('tests/TC-001.spec.ts', `import { test, expect } from '@zest-pw/test';
 test('TC-001: Example', async ({ page }) => {
+
   await test.step('Open site', async () => { 
     await page.goto('https://playwright.dev'); 
-    });
+  });
+
   await test.step('Title check', async () => { 
     await expect(page).toHaveTitle(/Playwright/); 
-    });
+  });
+    
 });
 `);
     }
