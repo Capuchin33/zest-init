@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execSync, spawnSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 
 function run(command) {
@@ -174,14 +174,11 @@ export default defineZestConfig({
         try {
           // Run Playwright init: interactive if not in --yes mode, auto-accept otherwise
           if (nonInteractiveYes) {
-            const result = spawnSync('npx', ['playwright', 'init'], {
-              input: Buffer.from('\n\n\n\n', 'utf8'), // Accept all defaults
-              stdio: ['pipe', 'inherit', 'inherit']
-            });
-            if (result.error) throw result.error;
+            // Run in non-interactive mode
+            run('npm init playwright@latest -- --yes');
           } else {
             // Let the user configure Playwright interactively
-            run('npx playwright init');
+            run('npm init playwright@latest');
           }
           // Modify the config to add Zest reporter
           if (fs.existsSync('playwright.config.ts')) {
