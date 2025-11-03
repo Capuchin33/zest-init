@@ -103,6 +103,22 @@ async function askYesNo(question, defaultYes = true) {
       didInstallPlaywright = !before && after;
     }
 
+    // Create tsconfig.json if missing (TypeScript is ensured above)
+    ensureFile('tsconfig.json', `{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node", "@playwright/test"]
+  },
+  "include": ["**/*.ts"]
+}
+`);
+
     // 2) zest.config.ts (optional)
     if (createZestConfig) {
       ensureFile('zest.config.ts', `import { defineZestConfig } from '@zest-pw/test';
