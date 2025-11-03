@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function run(command) {
   execSync(command, { stdio: 'inherit' });
@@ -10,6 +14,14 @@ function ensureFile(filePath, content) {
   if (!fs.existsSync(filePath)) {
     fs.writeFileSync(filePath, content, 'utf8');
   }
+}
+
+function copyFileIfNotExists(sourcePath, targetPath) {
+  if (!fs.existsSync(targetPath) && fs.existsSync(sourcePath)) {
+    fs.copyFileSync(sourcePath, targetPath);
+    return true;
+  }
+  return false;
 }
 
 function ensureDir(dirPath) {
@@ -70,21 +82,32 @@ function integrateZestReporter(configPath) {
   
   // Try to find and update reporter configuration
   if (configContent.includes('reporter:')) {
-    // If reporter exists, add to it (handles both single-line and multi-line arrays)
-    // Match reporter: followed by array that might span multiple lines
-    configContent = configContent.replace(
-      /reporter:\s*(\[[\s\S]*?\])/,
-      (match, reporters) => {
-        // Add Zest reporter if not present
-        if (!reporters.includes('@zest-pw/test/reporter')) {
-          // Remove closing bracket and add our reporter before it
-          const trimmed = reporters.trim();
-          const withoutBracket = trimmed.slice(0, -1).trimEnd();
-          return `reporter: ${withoutBracket}, ['@zest-pw/test/reporter']]`;
+    // Check if reporter is a string (e.g., reporter: 'html')
+    const stringReporterMatch = configContent.match(/reporter:\s*['"]([^'"]+)['"]/);
+    if (stringReporterMatch) {
+      // Convert string reporter to array format
+      const existingReporter = stringReporterMatch[1];
+      configContent = configContent.replace(
+        /reporter:\s*['"]([^'"]+)['"]/,
+        `reporter: [['${existingReporter}'], ['@zest-pw/test/reporter']]`
+      );
+    } else {
+      // If reporter exists as array, add to it (handles both single-line and multi-line arrays)
+      // Match reporter: followed by array that might span multiple lines
+      configContent = configContent.replace(
+        /reporter:\s*(\[[\s\S]*?\])/,
+        (match, reporters) => {
+          // Add Zest reporter if not present
+          if (!reporters.includes('@zest-pw/test/reporter')) {
+            // Remove closing bracket and add our reporter before it
+            const trimmed = reporters.trim();
+            const withoutBracket = trimmed.slice(0, -1).trimEnd();
+            return `reporter: ${withoutBracket}, ['@zest-pw/test/reporter']]`;
+          }
+          return match;
         }
-        return match;
-      }
-    );
+      );
+    }
   } else {
     // Add reporter section if it doesn't exist
     configContent = configContent.replace(
@@ -114,13 +137,8 @@ async function askYesNo(question, defaultYes = true) {
     const nonInteractiveYes = has('--yes') || has('-y');
 
     const defaultInstallPlaywright = !has('--no-playwright');
-    const defaultCreatePwConfig = !has('--no-config');
-    // The example test prompt will be asked later (after reading Playwright config)
     const defaultCreateExampleTest = !has('--no-example');
-
-    const createZestConfig = nonInteractiveYes
-      ? !has('--no-zest-config')
-      : await askYesNo('Create zest.config.ts?', true);
+    const defaultCreateTsConfig = !has('--no-tsconfig');
 
     const isTsInstalled = !!getInstalledVersion('typescript');
     const isTypesNodeInstalled = !!getInstalledVersion('@types/node');
@@ -133,141 +151,80 @@ async function askYesNo(question, defaultYes = true) {
     } else {
       installPlaywright = nonInteractiveYes
         ? defaultInstallPlaywright
-        : await askYesNo('Install @playwright/test and browsers?', defaultInstallPlaywright);
-    }
-    // Check if playwright.config.ts already exists
-    const pwConfigExists = fs.existsSync('playwright.config.ts');
-    // Ask about Playwright config only if Playwright will be available and config doesn't exist
-    let createPwConfig = false;
-    if ((installPlaywright || isPwInstalled) && !pwConfigExists) {
-      createPwConfig = nonInteractiveYes
-        ? defaultCreatePwConfig
-        : await askYesNo('Create playwright.config.ts?', defaultCreatePwConfig);
-    }
-    // Defer example test decision until after Playwright config is known
-    let createExampleTest = false;
-
-    // 1) First stage: ensure Playwright is installed (if chosen)
-    let didInstallPlaywright = false;
-    if (installPlaywright) {
-      const before = !!getInstalledVersion('@playwright/test');
-      ensureDevDependencies(['@playwright/test']);
-      const after = !!getInstalledVersion('@playwright/test');
-      didInstallPlaywright = !before && after;
-      // Install browsers right after Playwright is installed
-      if (didInstallPlaywright) {
-        try { run('npx playwright install'); } catch {}
-      }
+        : await askYesNo('Install @playwright/test?', defaultInstallPlaywright);
     }
 
-    // 2) Then: ensure remaining dev dependencies
-    const tsConfigExists = fs.existsSync('tsconfig.json');
-    ensureDevDependencies([
-      '@zest-pw/test',
-      // Skip installing TS toolchain if tsconfig.json already exists
-      ...(!tsConfigExists ? ['typescript', '@types/node'] : [])
-    ]);
+    // 1) Initialize Playwright (if chosen and config doesn't exist)
+    // npm init playwright@latest will install @playwright/test, TypeScript, and browsers automatically
+    const pwConfigExistsBeforeInit = fs.existsSync('playwright.config.ts');
+    let ranPlaywrightInit = false;
+    
+    if (installPlaywright && !pwConfigExistsBeforeInit) {
+      try {
+        // Run Playwright init: interactive if not in --yes mode, auto-accept otherwise
+        // This will install @playwright/test, TypeScript, @types/node, and browsers
+        if (nonInteractiveYes) {
+          run('npm init playwright@latest -- --yes');
+        } else {
+          run('npm init playwright@latest');
+        }
+        ranPlaywrightInit = true;
 
-    // Create tsconfig.json only if missing
-    ensureFile('tsconfig.json', `{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "esModuleInterop": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "types": ["node", "@playwright/test"]
-  },
-  "include": ["**/*.ts"]
-}
-`);
-
-    // 3) zest.config.ts (optional)
-    if (createZestConfig) {
-      ensureFile('zest.config.ts', `import { defineZestConfig } from '@zest-pw/test';
-
-/**
- * Zest Playwright Configuration
- *
- * Configure test reporting, screenshots, and Zephyr integration
- */
-export default defineZestConfig({
-  reporter: {
-    // Save test results to JSON file
-    saveJsonReport: true,
-    // Output directory for reports
-    outputDir: 'test-results',
-    // Print test results to console
-    printToConsole: true,
-    // Verbose output (includes all step details)
-    verbose: false,
-  },
-  screenshots: {
-    // Enable screenshot capture
-    enabled: true,
-    // Include screenshots in JSON report
-    includeInReport: true,
-    // Capture screenshots only on failure
-    onlyOnFailure: false,
-    // Save screenshots to disk as files
-    saveToDisk: false,
-  },
-  zephyr: {
-    // Enable Zephyr Scale integration
-    enabled: false,
-    // Update test results in Zephyr after test run
-    updateResults: false,
-    // API credentials (uses environment variables by default)
-    // apiUrl: process.env.ZEPHYR_API_URL,
-    // apiKey: process.env.ZEPHYR_API_KEY,
-    // testCycleKey: process.env.ZEPHYR_TEST_CYCLE_KEY,
-  },
-});
-`);
-    }
-
-    // 4) playwright.config.ts integration
-    if (installPlaywright || isPwInstalled) {
-      // If config already exists, integrate reporter without asking
-      if (pwConfigExists) {
-        integrateZestReporter('playwright.config.ts');
-      } else if (createPwConfig) {
-        // Use Playwright's init command to create standard config
-        try {
-          // Run Playwright init: interactive if not in --yes mode, auto-accept otherwise
-          if (nonInteractiveYes) {
-            // Run in non-interactive mode
-            run('npm init playwright@latest -- --yes');
-          } else {
-            // Let the user configure Playwright interactively
-            run('npm init playwright@latest');
-          }
-          // Integrate Zest reporter to the newly created config
-          integrateZestReporter('playwright.config.ts');
-
-          // Remove Playwright example tests (keep only our own later)
-          removePathIfExists('tests-examples');
-          // Common fallback example paths created by some versions
-          removePathIfExists('tests/example.spec.ts');
-          removePathIfExists('tests/example.spec.tsx');
-        } catch (err) {
-          // Fallback: create minimal config if init fails
-          ensureFile('playwright.config.ts', `import { defineConfig } from '@playwright/test';
+        // Remove Playwright example tests (keep only our own later)
+        removePathIfExists('tests-examples');
+        // Common fallback example paths created by some versions
+        removePathIfExists('tests/example.spec.ts');
+        removePathIfExists('tests/example.spec.tsx');
+      } catch (err) {
+        // Fallback: create minimal config if init fails
+        ensureFile('playwright.config.ts', `import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: 'tests',
   reporter: [['list'], ['@zest-pw/test/reporter']],
   use: { trace: 'on-first-retry' }
 });
 `);
-        }
+        ranPlaywrightInit = true;
       }
     }
 
-    // 5) Determine Playwright config and ask about example test now
+    // 3) Ask about installing Zest library (after Playwright is set up)
+    const defaultInstallZest = !has('--no-zest');
+    let installZest = false;
+    const isZestInstalled = !!getInstalledVersion('@zest-pw/test');
+    
+    if (!isZestInstalled) {
+      installZest = nonInteractiveYes
+        ? defaultInstallZest
+        : await askYesNo('Install @zest-pw/test?', defaultInstallZest);
+    }
+    
+    // 4) Handle tsconfig.json
+    const tsConfigExists = fs.existsSync('tsconfig.json');
+    let createTsConfig = false;
+    
+    if (tsConfigExists) {
+      // If tsconfig exists, automatically fix it if needed (no prompt)
+      const wasFixed = fixTsConfig('tsconfig.json');
+      if (wasFixed) {
+        console.log('✓ Fixed tsconfig.json (removed invalid "src" include path)');
+      }
+    } else {
+      // Ask only if tsconfig doesn't exist
+      createTsConfig = nonInteractiveYes
+        ? defaultCreateTsConfig
+        : await askYesNo('Create tsconfig.json?', defaultCreateTsConfig);
+      
+      if (createTsConfig) {
+        const templatePath = path.join(__dirname, 'templates', 'tsconfig.json.template');
+        copyFileIfNotExists(templatePath, 'tsconfig.json');
+      }
+    }
+    
+    // 5) Ask about example test right after tsconfig question (before installing dependencies)
     const pwInfo = readPlaywrightConfig();
     const effectiveTestDir = pwInfo.exists ? pwInfo.testDir : 'tests';
+    let createExampleTest = false;
 
     if (nonInteractiveYes) {
       createExampleTest = defaultCreateExampleTest;
@@ -275,24 +232,47 @@ export default defineConfig({
       createExampleTest = await askYesNo(`Add an example test in ${effectiveTestDir}/?`, defaultCreateExampleTest);
     }
 
-    if (createExampleTest) {
-      ensureDir(effectiveTestDir);
-      ensureFile(`${effectiveTestDir}/TC-001.spec.ts`, `import { test, expect } from '@zest-pw/test';
-test('TC-001: Example', async ({ page }) => {
-
-  await test.step('Open site', async () => { 
-    await page.goto('https://playwright.dev'); 
-  });
-
-  await test.step('Title check', async () => { 
-    await expect(page).toHaveTitle(/Playwright/); 
-  });
+    // 6) Install all dependencies after all questions are asked
+    const packagesToInstall = [];
     
-});
-`);
+    if (installZest || isZestInstalled) {
+      packagesToInstall.push('@zest-pw/test');
+    }
+    
+    // Install TS toolchain if tsconfig will be created or exists but TypeScript is not installed
+    if (createTsConfig || (tsConfigExists && !getInstalledVersion('typescript'))) {
+      packagesToInstall.push('typescript', '@types/node');
+    }
+    
+    if (packagesToInstall.length > 0) {
+      ensureDevDependencies(packagesToInstall);
     }
 
-    // Browser installation already handled immediately after Playwright install
+    // 7) Create example test after dependencies are installed
+    if (createExampleTest) {
+      ensureDir(effectiveTestDir);
+      const exampleTestPath = path.join(__dirname, 'templates', 'TC-001.spec.ts.template');
+      if (copyFileIfNotExists(exampleTestPath, `${effectiveTestDir}/TC-001.spec.ts`)) {
+        console.log(`✓ Created ${effectiveTestDir}/TC-001.spec.ts`);
+      }
+    }
+
+    // 8) zest.config.ts (create automatically after @zest-pw/test is installed)
+    if (installZest || isZestInstalled) {
+      // Create zest.config.ts automatically, skip if it already exists
+      const zestTemplatePath = path.join(__dirname, 'templates', 'zest.config.ts.template');
+      if (copyFileIfNotExists(zestTemplatePath, 'zest.config.ts')) {
+        console.log('✓ Created zest.config.ts');
+      }
+    }
+
+    // 9) Integrate reporter to playwright.config.ts (if Zest is installed and config exists)
+    if ((installZest || isZestInstalled) && (installPlaywright || isPwInstalled) && fs.existsSync('playwright.config.ts')) {
+      // Integrate reporter to existing or newly created config
+      integrateZestReporter('playwright.config.ts');
+    }
+
+    // Browser installation is handled by npm init playwright@latest
 
     console.log('\n✓ Zest initialized.');
     if (installPlaywright) {
