@@ -48,6 +48,19 @@ function ensureDevDependencies(packages) {
   }
 }
 
+function readPlaywrightConfig() {
+  const configPath = 'playwright.config.ts';
+  if (!fs.existsSync(configPath)) {
+    return { exists: false };
+  }
+  const content = fs.readFileSync(configPath, 'utf8');
+  // naive testDir detection
+  const testDirMatch = content.match(/testDir:\s*['"]([^'"]+)['"]/);
+  const testDir = testDirMatch ? testDirMatch[1] : 'tests';
+  const hasZestReporter = content.includes("@zest-pw/test/reporter");
+  return { exists: true, testDir, hasZestReporter };
+}
+
 function integrateZestReporter(configPath) {
   if (!fs.existsSync(configPath)) return;
   
@@ -102,6 +115,7 @@ async function askYesNo(question, defaultYes = true) {
 
     const defaultInstallPlaywright = !has('--no-playwright');
     const defaultCreatePwConfig = !has('--no-config');
+    // The example test prompt will be asked later (after reading Playwright config)
     const defaultCreateExampleTest = !has('--no-example');
 
     const createZestConfig = nonInteractiveYes
@@ -130,9 +144,8 @@ async function askYesNo(question, defaultYes = true) {
         ? defaultCreatePwConfig
         : await askYesNo('Create playwright.config.ts?', defaultCreatePwConfig);
     }
-    const createExampleTest = nonInteractiveYes
-      ? defaultCreateExampleTest
-      : await askYesNo('Add an example test in tests/?', defaultCreateExampleTest);
+    // Defer example test decision until after Playwright config is known
+    let createExampleTest = false;
 
     // 1) First stage: ensure Playwright is installed (if chosen)
     let didInstallPlaywright = false;
@@ -148,9 +161,14 @@ async function askYesNo(question, defaultYes = true) {
     }
 
     // 2) Then: ensure remaining dev dependencies
-    ensureDevDependencies(['@zest-pw/test', 'typescript', '@types/node']);
+    const tsConfigExists = fs.existsSync('tsconfig.json');
+    ensureDevDependencies([
+      '@zest-pw/test',
+      // Skip installing TS toolchain if tsconfig.json already exists
+      ...(!tsConfigExists ? ['typescript', '@types/node'] : [])
+    ]);
 
-    // Create tsconfig.json if missing (TypeScript is ensured above)
+    // Create tsconfig.json only if missing
     ensureFile('tsconfig.json', `{
   "compilerOptions": {
     "target": "ES2020",
@@ -247,10 +265,19 @@ export default defineConfig({
       }
     }
 
-    // 5) Tests (optional)
+    // 5) Determine Playwright config and ask about example test now
+    const pwInfo = readPlaywrightConfig();
+    const effectiveTestDir = pwInfo.exists ? pwInfo.testDir : 'tests';
+
+    if (nonInteractiveYes) {
+      createExampleTest = defaultCreateExampleTest;
+    } else {
+      createExampleTest = await askYesNo(`Add an example test in ${effectiveTestDir}/?`, defaultCreateExampleTest);
+    }
+
     if (createExampleTest) {
-      ensureDir('tests');
-      ensureFile('tests/TC-001.spec.ts', `import { test, expect } from '@zest-pw/test';
+      ensureDir(effectiveTestDir);
+      ensureFile(`${effectiveTestDir}/TC-001.spec.ts`, `import { test, expect } from '@zest-pw/test';
 test('TC-001: Example', async ({ page }) => {
 
   await test.step('Open site', async () => { 
