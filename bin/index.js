@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
 function run(command) {
@@ -15,6 +15,17 @@ function ensureFile(filePath, content) {
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+function removePathIfExists(targetPath) {
+  if (fs.existsSync(targetPath)) {
+    const stat = fs.statSync(targetPath);
+    if (stat.isDirectory()) {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+    } else {
+      fs.rmSync(targetPath, { force: true });
+    }
   }
 }
 
@@ -95,23 +106,104 @@ async function askYesNo(question, defaultYes = true) {
     // 2) zest.config.ts (optional)
     if (createZestConfig) {
       ensureFile('zest.config.ts', `import { defineZestConfig } from '@zest-pw/test';
+
+/**
+ * Zest Playwright Configuration
+ *
+ * Configure test reporting, screenshots, and Zephyr integration
+ */
 export default defineZestConfig({
-  reporter: { saveJsonReport: true, outputDir: 'test-results', printToConsole: true },
-  screenshots: { enabled: true, includeInReport: true, onlyOnFailure: false, saveToDisk: false },
-  zephyr: { enabled: false, updateResults: false }
+  reporter: {
+    // Save test results to JSON file
+    saveJsonReport: true,
+    // Output directory for reports
+    outputDir: 'test-results',
+    // Print test results to console
+    printToConsole: true,
+    // Verbose output (includes all step details)
+    verbose: false,
+  },
+  screenshots: {
+    // Enable screenshot capture
+    enabled: true,
+    // Include screenshots in JSON report
+    includeInReport: true,
+    // Capture screenshots only on failure
+    onlyOnFailure: false,
+    // Save screenshots to disk as files
+    saveToDisk: false,
+  },
+  zephyr: {
+    // Enable Zephyr Scale integration
+    enabled: false,
+    // Update test results in Zephyr after test run
+    updateResults: false,
+    // API credentials (uses environment variables by default)
+    // apiUrl: process.env.ZEPHYR_API_URL,
+    // apiKey: process.env.ZEPHYR_API_KEY,
+    // testCycleKey: process.env.ZEPHYR_TEST_CYCLE_KEY,
+  },
 });
 `);
     }
 
     // 3) playwright.config.ts (optional)
-    if (createPwConfig) {
-      ensureFile('playwright.config.ts', `import { defineConfig } from '@playwright/test';
+    if (createPwConfig && installPlaywright) {
+      // Use Playwright's init command to create standard config
+      if (!fs.existsSync('playwright.config.ts')) {
+        try {
+          // Run playwright init with auto-accept defaults (send Enter key presses)
+          const result = spawnSync('npx', ['playwright', 'init'], {
+            input: Buffer.from('\n\n\n\n', 'utf8'), // Accept all defaults
+            stdio: ['pipe', 'inherit', 'inherit']
+          });
+          if (result.error) throw result.error;
+          // Modify the config to add Zest reporter
+          if (fs.existsSync('playwright.config.ts')) {
+            let configContent = fs.readFileSync('playwright.config.ts', 'utf8');
+            // Add Zest reporter to the reporter array
+            if (!configContent.includes('@zest-pw/test/reporter')) {
+              // Try to find and update reporter configuration
+              if (configContent.includes('reporter:')) {
+                // If reporter exists, add to it
+                configContent = configContent.replace(
+                  /reporter:\s*(\[[\s\S]*?\])/,
+                  (match, reporters) => {
+                    // Add Zest reporter if not present
+                    if (!reporters.includes('@zest-pw/test/reporter')) {
+                      return `reporter: ${reporters.slice(0, -1)}, ['@zest-pw/test/reporter']]`;
+                    }
+                    return match;
+                  }
+                );
+              } else {
+                // Add reporter section if it doesn't exist
+                configContent = configContent.replace(
+                  /export default defineConfig\(\{/,
+                  `export default defineConfig({
+  reporter: [['list'], ['@zest-pw/test/reporter']],`
+                );
+              }
+              fs.writeFileSync('playwright.config.ts', configContent, 'utf8');
+            }
+          }
+
+          // Remove Playwright example tests (keep only our own later)
+          removePathIfExists('tests-examples');
+          // Common fallback example paths created by some versions
+          removePathIfExists('tests/example.spec.ts');
+          removePathIfExists('tests/example.spec.tsx');
+        } catch (err) {
+          // Fallback: create minimal config if init fails
+          ensureFile('playwright.config.ts', `import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: 'tests',
   reporter: [['list'], ['@zest-pw/test/reporter']],
   use: { trace: 'on-first-retry' }
 });
 `);
+        }
+      }
     }
 
     // 4) Tests (optional)
@@ -119,8 +211,12 @@ export default defineConfig({
       ensureDir('tests');
       ensureFile('tests/TC-001.spec.ts', `import { test, expect } from '@zest-pw/test';
 test('TC-001: Example', async ({ page }) => {
-  await test.step('Open site', async () => { await page.goto('https://playwright.dev'); });
-  await test.step('Title check', async () => { await expect(page).toHaveTitle(/Playwright/); });
+  await test.step('Open site', async () => { 
+    await page.goto('https://playwright.dev'); 
+    });
+  await test.step('Title check', async () => { 
+    await expect(page).toHaveTitle(/Playwright/); 
+    });
 });
 `);
     }
