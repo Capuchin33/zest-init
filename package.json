@@ -22,12 +22,12 @@
   "author": "Olexandr Kravchenko",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-org/create-zest-pw.git"
+    "url": "git+https://github.com/Capuchin33/zest-init.git"
   },
   "bugs": {
-    "url": "https://github.com/your-org/create-zest-pw/issues"
+    "url": "https://github.com/Capuchin33/zest-init/issues"
   },
-  "homepage": "https://github.com/your-org/create-zest-pw#readme",
+  "homepage": "https://github.com/Capuchin33/zest-init#readme",
   "files": [
     "bin"
   ],

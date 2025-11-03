@@ -1,52 +1,52 @@
 # Zest Playwright Init
 
-Ініціалізатор для швидкого налаштування Zest Playwright.
+Initializer for quickly setting up Zest Playwright.
 
-## Встановлення/запуск
+## Installation/Run
 
 ```bash
 npm init zest-pw@latest
 ```
 
-Це викликає пакет `create-зest-pw` і запускає інтерактивні питання. Ви можете обрати:
-- встановлювати чи ні `@playwright/test` і браузери
-- створювати чи ні `playwright.config.ts`
-- додавати чи ні приклад тесту у `tests/`
-- створювати чи ні `zest.config.ts`
+This invokes the `create-zest-pw` package and starts interactive prompts. You can choose to:
+- install or skip `@playwright/test` and browsers
+- create or skip `playwright.config.ts`
+- add or skip an example test in `tests/`
+- create or skip `zest.config.ts`
 
-Завжди перевіряються і за потреби додаються dev-залежності: `@zest-pw/test`, `typescript`, `@types/node` (вже встановлені — пропускаються). Створення `zest.config.ts` тепер також можна вимкнути.
+Dev dependencies are always checked and added if missing: `@zest-pw/test`, `typescript`, `@types/node` (already installed — skipped). Creating `zest.config.ts` can now also be disabled.
 
-### Неінтерактивний режим (прапори)
+### Non-interactive mode (flags)
 
 ```bash
-# Прийняти значення за замовчуванням (так для всього)
+# Accept defaults (yes to everything)
 npm init zest-pw@latest -- --yes
 
-# Вимкнути встановлення Playwright і браузерів
+# Disable installing Playwright and browsers
 npm init zest-pw@latest -- --no-playwright
 
-# Не створювати playwright.config.ts
+# Do not create playwright.config.ts
 npm init zest-pw@latest -- --no-config
 
-# Не додавати приклад тесту
+# Do not add an example test
 npm init zest-pw@latest -- --no-example
 
-# Не створювати zest.config.ts
+# Do not create zest.config.ts
 npm init zest-pw@latest -- --no-zest-config
 
-# Комбінування прапорів
+# Combine flags
 npm init zest-pw@latest -- --yes --no-example
 ```
 
 
-Після установки запустіть тести:
+After installation, run tests:
 ```bash
 npx playwright test
 ```
 
-## Усунення проблем
+## Troubleshooting
 
-- Переконайтесь, що встановлена Node.js >= 16
-- Якщо браузери не встановились: `npx playwright install --force`
-- На Windows запустіть термінал від імені адміністратора, якщо є помилки доступу
+- Ensure Node.js >= 16 is installed
+- If browsers did not install: `npx playwright install --force`
+- On Windows, run the terminal as Administrator if you get permission errors
 

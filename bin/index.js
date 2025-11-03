@@ -60,29 +60,29 @@ async function askYesNo(question, defaultYes = true) {
 
     const createZestConfig = nonInteractiveYes
       ? !has('--no-zest-config')
-      : await askYesNo('Створити zest.config.ts?', true);
+      : await askYesNo('Create zest.config.ts?', true);
 
     const isTsInstalled = !!getInstalledVersion('typescript');
     const isTypesNodeInstalled = !!getInstalledVersion('@types/node');
     const isPwInstalled = !!getInstalledVersion('@playwright/test');
 
     let installPlaywright;
-    // Якщо будь-яка з цих залежностей вже є, питання не показуємо
+    // If any of these dependencies already exist, do not show the question
     if (isTsInstalled || isTypesNodeInstalled || isPwInstalled) {
-      installPlaywright = !isPwInstalled; // встановити лише якщо відсутній
+      installPlaywright = !isPwInstalled; // install only if missing
     } else {
       installPlaywright = nonInteractiveYes
         ? defaultInstallPlaywright
-        : await askYesNo('Встановити @playwright/test та браузери?', defaultInstallPlaywright);
+        : await askYesNo('Install @playwright/test and browsers?', defaultInstallPlaywright);
     }
     const createPwConfig = nonInteractiveYes
       ? defaultCreatePwConfig
-      : await askYesNo('Створити playwright.config.ts?', defaultCreatePwConfig);
+      : await askYesNo('Create playwright.config.ts?', defaultCreatePwConfig);
     const createExampleTest = nonInteractiveYes
       ? defaultCreateExampleTest
-      : await askYesNo('Додати приклад тесту у tests/?', defaultCreateExampleTest);
+      : await askYesNo('Add an example test in tests/?', defaultCreateExampleTest);
 
-    // 1) Dev залежності (встановлюємо лише відсутні)
+    // 1) Dev dependencies (install only missing)
     ensureDevDependencies(['@zest-pw/test', 'typescript', '@types/node']);
     let didInstallPlaywright = false;
     if (installPlaywright) {
@@ -92,7 +92,7 @@ async function askYesNo(question, defaultYes = true) {
       didInstallPlaywright = !before && after;
     }
 
-    // 2) zest.config.ts (за вибором)
+    // 2) zest.config.ts (optional)
     if (createZestConfig) {
       ensureFile('zest.config.ts', `import { defineZestConfig } from '@zest-pw/test';
 export default defineZestConfig({
@@ -103,7 +103,7 @@ export default defineZestConfig({
 `);
     }
 
-    // 3) playwright.config.ts (за вибором)
+    // 3) playwright.config.ts (optional)
     if (createPwConfig) {
       ensureFile('playwright.config.ts', `import { defineConfig } from '@playwright/test';
 export default defineConfig({
@@ -114,7 +114,7 @@ export default defineConfig({
 `);
     }
 
-    // 4) Тести (за вибором)
+    // 4) Tests (optional)
     if (createExampleTest) {
       ensureDir('tests');
       ensureFile('tests/TC-001.spec.ts', `import { test, expect } from '@zest-pw/test';
@@ -125,19 +125,19 @@ test('TC-001: Example', async ({ page }) => {
 `);
     }
 
-    // 5) Інсталяція браузерів (за вибором і лише якщо є Playwright)
+    // 5) Browser installation (optional and only if Playwright is present)
     if (didInstallPlaywright) {
       try { run('npx playwright install'); } catch {}
     }
 
-    console.log('\n✓ Zest ініціалізовано.');
+    console.log('\n✓ Zest initialized.');
     if (installPlaywright) {
-      console.log('Запуск тестів: npx playwright test');
+      console.log('Run tests: npx playwright test');
     } else {
-      console.log('Додайте Playwright за потреби: npm i -D @playwright/test');
+      console.log('Add Playwright if needed: npm i -D @playwright/test');
     }
   } catch (err) {
-    console.error('Помилка під час ініціалізації:', err?.message || err);
+    console.error('Error during initialization:', err?.message || err);
     process.exit(1);
   }
 })();
