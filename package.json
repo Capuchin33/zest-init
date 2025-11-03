@@ -1,0 +1,36 @@
+{
+  "name": "create-zest-pw",
+  "version": "0.1.0",
+  "description": "Initializer for Zest Playwright setup",
+  "bin": {
+    "create-zest-pw": "bin/index.js"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "playwright",
+    "zest",
+    "initializer",
+    "scaffold"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "author": "Olexandr Kravchenko",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/create-zest-pw.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/create-zest-pw/issues"
+  },
+  "homepage": "https://github.com/your-org/create-zest-pw#readme",
+  "files": [
+    "bin"
+  ],
+  "dependencies": {}
+}
+
