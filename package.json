@@ -11,9 +11,13 @@
   },
   "keywords": [
     "playwright",
-    "zest",
+    "zest-pw",
+    "zest-playwright",
+    "zest-pw-init",
+    "zest-reporter",
     "initializer",
-    "scaffold"
+    "scaffold",
+    "reporter"
   ],
   "publishConfig": {
     "access": "public"
