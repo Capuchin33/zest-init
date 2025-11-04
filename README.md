@@ -8,7 +8,7 @@ Initializer for quickly setting up Zest Playwright.
 npm init zest-pw@latest
 ```
 
-This invokes the `create-zest-pw` package and starts interactive prompts. You can choose to:
+This invokes the `zest-pw` package and starts interactive prompts. You can choose to:
 - install or skip `@playwright/test` (uses `npm init playwright@latest` which also installs TypeScript and browsers)
 - install or skip `@zest-pw/test`
 - create or skip `tsconfig.json`
