@@ -1,5 +1,5 @@
 import { test, expect } from '@zest-pw/test';
-test('TC-001: Example', async ({ page }) => {
+test('Check page title', async ({ page }) => {
 
   await test.step('Open site', async () => { 
     await page.goto('https://playwright.dev'); 
