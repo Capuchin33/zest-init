@@ -1,6 +1,6 @@
 {
   "name": "zest-pw",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Initializer for Zest Playwright setup",
   "bin": {
     "zest-pw": "bin/index.js",
