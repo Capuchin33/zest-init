@@ -21,6 +21,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const defaultInstallPlaywright = !has('--no-playwright');
     const defaultCreateExampleTest = !has('--no-example');
     const defaultCreateTsConfig = !has('--no-tsconfig');
+    const defaultInstallDotenv = !has('--no-dotenv');
 
     // ============================================================================
     // Playwright: Check installation and initialize
@@ -128,6 +129,36 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
     // ============================================================================
     if ((installZest || isZestInstalled) && (installPlaywright || isPwInstalled) && fs.existsSync('playwright.config.ts')) {
       integrateZestReporter('playwright.config.ts');
+    }
+
+    // ============================================================================
+    // Dotenv: Check installation and ask user
+    // ============================================================================
+    const isDotenvInstalled = !!getInstalledVersion('dotenv');
+    let installDotenv = false;
+    
+    if (!isDotenvInstalled) {
+      installDotenv = nonInteractiveYes
+        ? defaultInstallDotenv
+        : await askYesNo('Install dotenv?', defaultInstallDotenv);
+    }
+
+    // ============================================================================
+    // Dependencies: Install dotenv if needed
+    // ============================================================================
+    if (installDotenv) {
+      ensureDevDependencies(['dotenv']);
+    }
+
+    // ============================================================================
+    // Files: Create .env file from template
+    // ============================================================================
+    if (installDotenv || isDotenvInstalled) {
+      const envExists = fs.existsSync('.env');
+      if (!envExists) {
+        const envTemplatePath = path.join(__dirname, 'templates', 'env.template');
+        copyFileIfNotExists(envTemplatePath, '.env');
+      }
     }
   } catch (err) {
     console.error('Error during initialization:', err?.message || err);
