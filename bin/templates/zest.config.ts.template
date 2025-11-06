@@ -6,6 +6,9 @@ import { defineZestConfig } from '@zest-pw/test';
  * Configure test reporting, screenshots, and Zephyr integration
  */
 export default defineZestConfig({
+  // ============================================================================
+  // Reporter Configuration
+  // ============================================================================
   reporter: {
     // Save test results to JSON file
     saveJsonReport: true,
@@ -16,6 +19,10 @@ export default defineZestConfig({
     // Verbose output (includes all step details)
     verbose: false,
   },
+
+  // ============================================================================
+  // Screenshots Configuration
+  // ============================================================================
   screenshots: {
     // Enable screenshot capture
     enabled: true,
@@ -26,6 +33,10 @@ export default defineZestConfig({
     // Save screenshots to disk as files
     saveToDisk: false,
   },
+
+  // ============================================================================
+  // Zephyr Scale Integration
+  // ============================================================================
   zephyr: {
     // Enable Zephyr Scale integration
     enabled: false,
